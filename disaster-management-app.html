@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResQNet — Disaster Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #E63946;
+    --orange: #F4800A;
+    --yellow: #F7C325;
+    --green: #2DC653;
+    --bg: #0A0C10;
+    --surface: #111318;
+    --surface2: #181C24;
+    --border: rgba(255,255,255,0.07);
+    --text: #E8EAF0;
+    --muted: #7B8099;
+    --accent: #3A86FF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* NOISE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    opacity: 0.025;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* LAYOUT */
+  .shell { display: flex; height: 100vh; position: relative; z-index: 1; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+  }
+  .logo {
+    padding: 22px 20px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-mark {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  .logo-mark span { color: var(--red); }
+  .logo-sub { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
+  .nav { padding: 12px 10px; flex: 1; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    margin-bottom: 2px;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(58,134,255,0.12); color: var(--accent); }
+  .nav-item .icon { font-size: 15px; width: 18px; text-align: center; }
+  .alert-badge {
+    margin-left: auto;
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 1px 6px;
+  }
+  .sidebar-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+  }
+  .sos-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--red);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    animation: pulse-red 2s infinite;
+  }
+  .sos-btn:hover { opacity: 0.85; transform: scale(0.98); }
+  @keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(230,57,70,0.5); }
+    50% { box-shadow: 0 0 0 8px rgba(230,57,70,0); }
+  }
+
+  /* MAIN */
+  .main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+  /* TOPBAR */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  .location-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .location-chip span { color: var(--text); font-weight: 500; }
+  .refresh-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: color 0.15s;
+  }
+  .refresh-btn:hover { color: var(--text); }
+
+  /* CONTENT */
+  .content { padding: 20px 24px; flex: 1; }
+
+  /* ALERT BANNER */
+  .alert-banner {
+    display: flex; align-items: center; gap: 14px;
+    background: rgba(230,57,70,0.1);
+    border: 1px solid rgba(230,57,70,0.3);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    animation: slideIn 0.4s ease;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .alert-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--red);
+    flex-shrink: 0;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .alert-text { flex: 1; }
+  .alert-text strong { color: var(--red); font-size: 13px; }
+  .alert-text p { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .alert-time { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  /* GRID */
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+
+  /* STAT CARDS */
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    transition: border-color 0.2s;
+  }
+  .stat-card:hover { border-color: rgba(255,255,255,0.15); }
+  .stat-label { font-size: 11px; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 700; line-height: 1; }
+  .stat-meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .stat-meta b { color: var(--green); }
+  .stat-meta .warn { color: var(--orange); }
+
+  /* HAZARD LAYERS */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-header h3 { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.3px; }
+  .card-body { padding: 16px 18px; }
+  .badge {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+    padding: 3px 9px; border-radius: 20px;
+    text-transform: uppercase;
+  }
+  .badge-live { background: rgba(230,57,70,0.15); color: var(--red); border: 1px solid rgba(230,57,70,0.3); }
+  .badge-info { background: rgba(58,134,255,0.15); color: var(--accent); border: 1px solid rgba(58,134,255,0.3); }
+  .badge-ok { background: rgba(45,198,83,0.15); color: var(--green); border: 1px solid rgba(45,198,83,0.3); }
+
+  /* HAZARD LIST */
+  .hazard-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .hazard-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .hazard-item:hover { opacity: 0.8; }
+  .hazard-icon {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    flex-shrink: 0;
+  }
+  .hazard-icon.flood { background: rgba(58,134,255,0.15); }
+  .hazard-icon.quake { background: rgba(244,128,10,0.15); }
+  .hazard-icon.cyclone { background: rgba(230,57,70,0.15); }
+  .hazard-icon.heat { background: rgba(247,195,37,0.15); }
+  .hazard-info { flex: 1; }
+  .hazard-name { font-size: 13px; font-weight: 500; }
+  .hazard-loc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .hazard-right { text-align: right; }
+  .severity-pill {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-bottom: 4px;
+  }
+  .hazard-updated { font-size: 10px; color: var(--muted); }
+
+  /* COLOUR CODE LEGEND */
+  .color-scale {
+    display: flex; gap: 6px;
+    margin-bottom: 14px;
+  }
+  .color-level {
+    flex: 1;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-align: center;
+  }
+
+  /* MAP PLACEHOLDER */
+  .map-placeholder {
+    position: relative;
+    background: var(--surface2);
+    border-radius: 8px;
+    height: 200px;
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .map-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(58,134,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(58,134,255,0.05) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+  .map-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(30px);
+    opacity: 0.25;
+    pointer-events: none;
+  }
+  .map-dot {
+    position: absolute;
+    border-radius: 50%;
+  }
+  .map-label {
+    position: absolute;
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .map-pin {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center;
+    cursor: pointer;
+  }
+  .map-pin .pin-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--bg);
+    animation: ping 1.5s infinite;
+  }
+  .map-pin .pin-label {
+    font-size: 9px; font-weight: 600;
+    margin-top: 3px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 2px 5px;
+    border-radius: 4px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  @keyframes ping {
+    0% { box-shadow: 0 0 0 0 currentColor; }
+    70% { box-shadow: 0 0 0 8px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .map-controls {
+    position: absolute; bottom: 10px; right: 10px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .map-ctrl-btn {
+    width: 28px; height: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    transition: color 0.15s;
+  }
+  .map-ctrl-btn:hover { color: var(--text); }
+  .map-offline-badge {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(45,198,83,0.15);
+    border: 1px solid rgba(45,198,83,0.3);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 10px;
+    color: var(--green);
+    font-weight: 600;
+  }
+
+  /* ALERT CHANNELS */
+  .channel-list { display: flex; flex-direction: column; gap: 8px; }
+  .channel-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .channel-icon { font-size: 16px; width: 20px; text-align: center; }
+  .channel-name { font-size: 13px; font-weight: 500; flex: 1; }
+  .toggle {
+    width: 36px; height: 20px;
+    background: var(--green);
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    top: 3px; left: 19px;
+    transition: left 0.2s;
+  }
+  .toggle.off { background: var(--surface); border: 1px solid var(--border); }
+  .toggle.off::after { left: 3px; }
+
+  /* REPORTS FEED */
+  .report-item {
+    display: flex; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .report-item:last-child { border-bottom: none; }
+  .report-avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .report-content { flex: 1; }
+  .report-text { font-size: 12px; color: var(--text); line-height: 1.5; }
+  .report-meta { font-size: 10px; color: var(--muted); margin-top: 4px; }
+  .report-status {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 7px; border-radius: 10px;
+    margin-top: 5px; display: inline-block;
+  }
+
+  /* SHELTER TABLE */
+  .shelter-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .shelter-table th {
+    text-align: left; padding: 6px 10px;
+    color: var(--muted); font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .shelter-table td { padding: 10px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .shelter-table tr:last-child td { border-bottom: none; }
+  .capacity-bar { height: 4px; background: var(--surface2); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+  .capacity-fill { height: 100%; border-radius: 2px; }
+
+  /* SECTION TITLE */
+  .section-title { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">Res<span>Q</span>Net</div>
+      <div class="logo-sub">Disaster Management</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active"><span class="icon">⬡</span> Dashboard</div>
+      <div class="nav-item"><span class="icon">🗺</span> GIS Map <span class="alert-badge">2</span></div>
+      <div class="nav-item"><span class="icon">⚡</span> Hazard Monitor</div>
+      <div class="nav-item"><span class="icon">🔔</span> Alerts</div>
+      <div class="nav-item"><span class="icon">📡</span> Crowd Reports</div>
+      <div class="nav-item"><span class="icon">🏕</span> Shelters</div>
+      <div class="nav-item"><span class="icon">📊</span> Analytics</div>
+      <div class="nav-item"><span class="icon">⚙</span> Settings</div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="sos-btn">🆘 SEND SOS</button>
+    </div>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <main class="main">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="topbar-title">Situation Overview</div>
+      <div class="topbar-right">
+        <div class="location-chip">📍 <span>Ghaziabad, UP</span></div>
+        <div class="refresh-btn">↻ Refresh</div>
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;">S</div>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- ACTIVE ALERT BANNER -->
+      <div class="alert-banner">
+        <div class="alert-dot"></div>
+        <div class="alert-text">
+          <strong>🔴 HIGH ALERT — Cyclone Warning Active</strong>
+          <p>You are in danger zone. Evacuate within 6 hrs. Follow designated evacuation routes.</p>
+        </div>
+        <div class="alert-time">2 min ago</div>
+      </div>
+
+      <!-- STATS ROW -->
+      <div class="grid-3" style="margin-bottom:20px;">
+        <div class="stat-card">
+          <div class="stat-label">Active Hazards</div>
+          <div class="stat-value" style="color:var(--red);">4</div>
+          <div class="stat-meta"><span class="warn">▲ 1 new</span> in last hour</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Alerts Sent Today</div>
+          <div class="stat-value">12,843</div>
+          <div class="stat-meta"><b>↑ 98%</b> delivery rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Shelters Available</div>
+          <div class="stat-value" style="color:var(--green);">17</div>
+          <div class="stat-meta">6,200 <b>beds open</b></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+
+        <!-- LEFT COL -->
+        <div style="display:flex;flex-direction:column;gap:14px;">
+
+          <!-- HAZARD LAYERS -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Hazard Layers</h3>
+              <span class="badge badge-live">● Live — Satellite</span>
+            </div>
+            <div class="card-body">
+              <div class="hazard-item">
+                <div class="hazard-icon flood">🌊</div>
+                <div class="hazard-info">
+                  <div class="hazard-name">Flood Risk</div>
+                  <div class="hazard-loc">Ganga Basin, 40km radius</div>
+                </div>
+                <div class="hazard-right">
+                  <div class="severity-pill" style="background:var(--orange);color:var(--orange);">.</div>
+                  <div class="hazard-updated">8 min ago</div>
+                </div>
+              </div>
+              <div class="hazard-item">
+                <div class="hazard-icon quake">⚡</div>
+                <div class="hazard-info">
+                  <div class="hazard-name">Seismic Activity</div>
+                  <div class="hazard-loc">M3.2 — 85km NE</div>
+                </div>
+                <div class="hazard-right">
+                  <div class="severity-pill" style="background:var(--yellow);color:var(--yellow);">.</div>
+                  <div class="hazard-updated">22 min ago</div>
+                </div>
+              </div>
+              <div class="hazard-item">
+                <div class="hazard-icon cyclone">🌀</div>
+                <div class="hazard-info">
+                  <div class="hazard-name">Cyclone Mocha</div>
+                  <div class="hazard-loc">Bay of Bengal → Landfall est. 18h</div>
+                </div>
+                <div class="hazard-right">
+                  <div class="severity-pill" style="background:var(--red);color:var(--red);">.</div>
+                  <div class="hazard-updated">1 min ago</div>
+                </div>
+              </div>
+              <div class="hazard-item">
+                <div class="hazard-icon heat">🌡</div>
+                <div class="hazard-info">
+                  <div class="hazard-name">Heatwave Index</div>
+                  <div class="hazard-loc">Regional — 44°C peak</div>
+                </div>
+                <div class="hazard-right">
+                  <div class="severity-pill" style="background:var(--yellow);color:var(--yellow);">.</div>
+                  <div class="hazard-updated">15 min ago</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- COLOUR CODE LEGEND -->
+          <div class="card">
+            <div class="card-header"><h3>Alert Severity Scale</h3></div>
+            <div class="card-body">
+              <div class="color-scale">
+                <div class="color-level" style="background:rgba(230,57,70,0.2);color:var(--red);border:1px solid rgba(230,57,70,0.3);">🔴 Red<br><span style="font-size:9px;font-weight:400;opacity:0.7;">Most Dangerous</span></div>
+                <div class="color-level" style="background:rgba(244,128,10,0.15);color:var(--orange);border:1px solid rgba(244,128,10,0.3);">🟠 Orange<br><span style="font-size:9px;font-weight:400;opacity:0.7;">High Risk</span></div>
+                <div class="color-level" style="background:rgba(247,195,37,0.15);color:var(--yellow);border:1px solid rgba(247,195,37,0.3);">🟡 Yellow<br><span style="font-size:9px;font-weight:400;opacity:0.7;">Moderate</span></div>
+                <div class="color-level" style="background:rgba(45,198,83,0.12);color:var(--green);border:1px solid rgba(45,198,83,0.3);">🟢 Green<br><span style="font-size:9px;font-weight:400;opacity:0.7;">Safe</span></div>
+              </div>
+              <p style="font-size:11px;color:var(--muted);line-height:1.6;">Severity is calculated from satellite data, ground sensors, and crowd reports. Colour changes trigger automatic multichannel alerts.</p>
+            </div>
+          </div>
+
+          <!-- ALERT CHANNELS -->
+          <div class="card">
+            <div class="card-header"><h3>Alert Channels</h3><span class="badge badge-ok">Multichannel Active</span></div>
+            <div class="card-body">
+              <div class="channel-list">
+                <div class="channel-item">
+                  <div class="channel-icon">💬</div>
+                  <div class="channel-name">SMS Alerts</div>
+                  <div class="toggle"></div>
+                </div>
+                <div class="channel-item">
+                  <div class="channel-icon">🔔</div>
+                  <div class="channel-name">App Push Notifications</div>
+                  <div class="toggle"></div>
+                </div>
+                <div class="channel-item">
+                  <div class="channel-icon">📞</div>
+                  <div class="channel-name">Voice Alerts (Calls)</div>
+                  <div class="toggle"></div>
+                </div>
+                <div class="channel-item" style="opacity:0.5;">
+                  <div class="channel-icon">📧</div>
+                  <div class="channel-name">Email Digest</div>
+                  <div class="toggle off"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT COL -->
+        <div style="display:flex;flex-direction:column;gap:14px;">
+
+          <!-- GIS MAP -->
+          <div class="card">
+            <div class="card-header">
+              <h3>GIS Interactive Map</h3>
+              <div style="display:flex;gap:6px;">
+                <span class="badge badge-info">QGIS / ArcGIS</span>
+              </div>
+            </div>
+            <div class="card-body" style="padding:14px;">
+              <div class="map-placeholder">
+                <div class="map-grid"></div>
+                <div class="map-blob" style="width:120px;height:120px;background:var(--red);top:30%;left:25%;"></div>
+                <div class="map-blob" style="width:80px;height:80px;background:var(--accent);top:50%;left:60%;"></div>
+                <div class="map-blob" style="width:60px;height:60px;background:var(--orange);top:20%;left:55%;"></div>
+
+                <div class="map-pin" style="top:35%;left:30%;">
+                  <div class="pin-dot" style="background:var(--red);color:var(--red);"></div>
+                  <div class="pin-label">Cyclone Zone</div>
+                </div>
+                <div class="map-pin" style="top:55%;left:62%;">
+                  <div class="pin-dot" style="background:var(--accent);color:var(--accent);"></div>
+                  <div class="pin-label">Flood Warning</div>
+                </div>
+                <div class="map-pin" style="top:65%;left:45%;">
+                  <div class="pin-dot" style="background:var(--green);color:var(--green);"></div>
+                  <div class="pin-label">Shelter A4</div>
+                </div>
+                <div class="map-pin" style="top:25%;left:55%;">
+                  <div class="pin-dot" style="background:var(--yellow);color:var(--yellow);"></div>
+                  <div class="pin-label">Seismic M3.2</div>
+                </div>
+
+                <div class="map-offline-badge">✓ Offline Ready</div>
+                <div class="map-controls">
+                  <div class="map-ctrl-btn">+</div>
+                  <div class="map-ctrl-btn">−</div>
+                  <div class="map-ctrl-btn">⊕</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:10px;">
+                <button style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:11px;cursor:pointer;font-family:inherit;">📍 Optimise Route</button>
+                <button style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:11px;cursor:pointer;font-family:inherit;">⬇ Download Offline</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CROWD REPORTS -->
+          <div class="card">
+            <div class="card-header"><h3>Crowd Source Reports</h3><span class="badge badge-live">● Live Feed</span></div>
+            <div class="card-body">
+              <div class="report-item">
+                <div class="report-avatar">👤</div>
+                <div class="report-content">
+                  <div class="report-text">Road NH-58 blocked near Muradnagar — large tree fallen, traffic backed up 3km</div>
+                  <div class="report-meta">12 min ago · Verified · Muradnagar, UP</div>
+                  <span class="report-status" style="background:rgba(244,128,10,0.15);color:var(--orange);">⚠ Blockage</span>
+                </div>
+              </div>
+              <div class="report-item">
+                <div class="report-avatar">👤</div>
+                <div class="report-content">
+                  <div class="report-text">Water levels rising near Hindon river — reached 3rd step of ghats, evacuating</div>
+                  <div class="report-meta">28 min ago · Unverified · Ghaziabad</div>
+                  <span class="report-status" style="background:rgba(230,57,70,0.15);color:var(--red);">🔴 Flood Risk</span>
+                </div>
+              </div>
+              <div class="report-item">
+                <div class="report-avatar">🧑‍⚕️</div>
+                <div class="report-content">
+                  <div class="report-text">Medical camp set up at Indirapuram stadium — 200 capacity, supplies adequate</div>
+                  <div class="report-meta">45 min ago · Official · Relief Team</div>
+                  <span class="report-status" style="background:rgba(45,198,83,0.12);color:var(--green);">✓ Relief Active</span>
+                </div>
+              </div>
+              <div style="margin-top:8px;">
+                <button style="width:100%;padding:8px;background:rgba(58,134,255,0.1);border:1px solid rgba(58,134,255,0.25);border-radius:7px;color:var(--accent);font-size:12px;cursor:pointer;font-family:inherit;">+ Submit a Report</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SHELTER MAPPING -->
+          <div class="card">
+            <div class="card-header"><h3>Shelter Mapping & Relief</h3><span class="badge badge-ok">17 Open</span></div>
+            <div class="card-body" style="padding:14px;">
+              <table class="shelter-table">
+                <thead>
+                  <tr>
+                    <th>Shelter</th>
+                    <th>Distance</th>
+                    <th>Capacity</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><div style="font-weight:500;">Indirapuram Stadium</div><div style="font-size:10px;color:var(--muted);">Food · Medical · Water</div></td>
+                    <td>2.4 km</td>
+                    <td>
+                      <div>180/200</div>
+                      <div class="capacity-bar"><div class="capacity-fill" style="width:90%;background:var(--orange);"></div></div>
+                    </td>
+                    <td><span style="color:var(--orange);font-size:11px;font-weight:600;">Near Full</span></td>
+                  </tr>
+                  <tr>
+                    <td><div style="font-weight:500;">Vasundhara Grounds</div><div style="font-size:10px;color:var(--muted);">Food · Evacuation</div></td>
+                    <td>4.1 km</td>
+                    <td>
+                      <div>95/500</div>
+                      <div class="capacity-bar"><div class="capacity-fill" style="width:19%;background:var(--green);"></div></div>
+                    </td>
+                    <td><span style="color:var(--green);font-size:11px;font-weight:600;">Open</span></td>
+                  </tr>
+                  <tr>
+                    <td><div style="font-weight:500;">Govt. School Sector 5</div><div style="font-size:10px;color:var(--muted);">Emergency · Medical</div></td>
+                    <td>6.7 km</td>
+                    <td>
+                      <div>210/300</div>
+                      <div class="capacity-bar"><div class="capacity-fill" style="width:70%;background:var(--yellow);"></div></div>
+                    </td>
+                    <td><span style="color:var(--yellow);font-size:11px;font-weight:600;">Moderate</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function() {
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.toggle').forEach(t => {
+    t.addEventListener('click', function() {
+      this.classList.toggle('off');
+    });
+  });
+
+  document.querySelector('.sos-btn').addEventListener('click', function() {
+    this.textContent = '📡 SOS Sent!';
+    this.style.background = 'var(--green)';
+    setTimeout(() => {
+      this.textContent = '🆘 SEND SOS';
+      this.style.background = 'var(--red)';
+    }, 3000);
+  });
+
+  document.querySelector('.refresh-btn').addEventListener('click', function() {
+    this.textContent = '↻ Refreshing…';
+    setTimeout(() => { this.textContent = '↻ Refresh'; }, 1500);
+  });
+</script>
+</body>
+</html>
